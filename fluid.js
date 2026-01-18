@@ -20,6 +20,7 @@ class FluidSimulation {
             pressureIterations: 20,
             curl: 30,
             splatRadius: 0.005,
+            maxDeltaTime: 0.016, // Cap timestep at 60 FPS for stability
             colorPalette: [
                 [1.0, 0.0, 0.5],
                 [0.0, 0.5, 1.0],
@@ -30,7 +31,6 @@ class FluidSimulation {
         };
 
         this.pointers = [];
-        this.splatStack = [];
         this.lastTime = performance.now();
         
         this.resizeCanvas();
@@ -264,10 +264,13 @@ class FluidSimulation {
             gradientSubtract: this.createProgram(vertShader, this.compileShader(this.gl.FRAGMENT_SHADER, gradientSubtractShader)),
         };
 
-        // Create a quad buffer (full-screen quad: bottom-left, bottom-right, top-right, top-left)
+        // Full-screen quad vertices: [bottom-left, bottom-right, top-right, top-left]
+        const FULL_SCREEN_QUAD_VERTICES = new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]);
+        
+        // Create a quad buffer for rendering
         const quadBuffer = this.gl.createBuffer();
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, quadBuffer);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), this.gl.STATIC_DRAW);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, FULL_SCREEN_QUAD_VERTICES, this.gl.STATIC_DRAW);
         
         // Store for later use
         this.quadBuffer = quadBuffer;
@@ -466,7 +469,7 @@ class FluidSimulation {
         
         // Calculate dynamic timestep based on actual frame time
         const currentTime = performance.now();
-        const dt = Math.min((currentTime - this.lastTime) / 1000, 0.016); // Cap at 60 FPS for stability
+        const dt = Math.min((currentTime - this.lastTime) / 1000, this.config.maxDeltaTime);
         this.lastTime = currentTime;
 
         // Apply inputs

@@ -62,6 +62,7 @@ config: {
     pressureIterations: 20,      // Pressure solver iterations
     curl: 30,                    // Vorticity strength
     splatRadius: 0.005,          // Interaction radius
+    maxDeltaTime: 0.016,         // Cap timestep at 60 FPS for stability
 }
 ```
 
