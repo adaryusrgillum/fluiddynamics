@@ -31,6 +31,7 @@ class FluidSimulation {
 
         this.pointers = [];
         this.splatStack = [];
+        this.lastTime = performance.now();
         
         this.resizeCanvas();
         this.initPrograms();
@@ -63,6 +64,10 @@ class FluidSimulation {
         const program = this.gl.createProgram();
         this.gl.attachShader(program, vertexShader);
         this.gl.attachShader(program, fragmentShader);
+        
+        // Bind attribute location before linking
+        this.gl.bindAttribLocation(program, 0, 'aPosition');
+        
         this.gl.linkProgram(program);
 
         if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
@@ -259,7 +264,7 @@ class FluidSimulation {
             gradientSubtract: this.createProgram(vertShader, this.compileShader(this.gl.FRAGMENT_SHADER, gradientSubtractShader)),
         };
 
-        // Create a quad buffer
+        // Create a quad buffer (full-screen quad: bottom-left, bottom-right, top-right, top-left)
         const quadBuffer = this.gl.createBuffer();
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, quadBuffer);
         this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), this.gl.STATIC_DRAW);
@@ -420,7 +425,9 @@ class FluidSimulation {
         gl.viewport(0, 0, this.velocity.read.width, this.velocity.read.height);
         
         gl.useProgram(this.programs.splat);
-        gl.uniform1i(gl.getUniformLocation(this.programs.splat, 'uTarget'), this.velocity.read.texture);
+        gl.uniform1i(gl.getUniformLocation(this.programs.splat, 'uTarget'), 0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.velocity.read.texture);
         gl.uniform1f(gl.getUniformLocation(this.programs.splat, 'aspectRatio'), this.aspectRatio);
         gl.uniform2f(gl.getUniformLocation(this.programs.splat, 'point'), x / this.canvas.width, 1.0 - y / this.canvas.height);
         gl.uniform3f(gl.getUniformLocation(this.programs.splat, 'color'), dx, -dy, 1.0);
@@ -430,7 +437,9 @@ class FluidSimulation {
         this.velocity.swap();
 
         gl.viewport(0, 0, this.density.read.width, this.density.read.height);
-        gl.uniform1i(gl.getUniformLocation(this.programs.splat, 'uTarget'), this.density.read.texture);
+        gl.uniform1i(gl.getUniformLocation(this.programs.splat, 'uTarget'), 0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.density.read.texture);
         gl.uniform3f(gl.getUniformLocation(this.programs.splat, 'color'), color[0] * 0.3, color[1] * 0.3, color[2] * 0.3);
         
         this.blit(this.density.write.fbo);
@@ -454,7 +463,11 @@ class FluidSimulation {
 
     update() {
         const gl = this.gl;
-        const dt = 0.016; // 60 FPS
+        
+        // Calculate dynamic timestep based on actual frame time
+        const currentTime = performance.now();
+        const dt = Math.min((currentTime - this.lastTime) / 1000, 0.016); // Cap at 60 FPS for stability
+        this.lastTime = currentTime;
 
         // Apply inputs
         for (let i = 0; i < this.pointers.length; i++) {
